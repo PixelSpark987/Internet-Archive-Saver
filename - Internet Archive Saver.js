@@ -26,6 +26,7 @@
 // @exclude      *tekmods.com
 // @exclude      *pikabu.ru*
 // @exclude      *psnprofiles.com*
+// @exclude      *carrd.co/dashboard/*
 // @exclude      *192.168.*
 // @exclude      *169.254.*
 // @exclude      *172.16.*
