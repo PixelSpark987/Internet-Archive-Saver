@@ -7,32 +7,35 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987
 // @icon         https://is.gd/IASVG
-// @version      4.6.0
+// @version      4.6.1
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
 
-// @match        *://*/*
-// @exclude      *my.nextdns.io*
-// @exclude      *accounts.google.com*
-// @exclude      *myactivity.google.com*
-// @exclude      *account.sony.com*
-// @exclude      *id.sonyentertainmentnetwork.com*
-// @exclude      *github.com/*/*/edit/*
-// @exclude      *gemini.google.com*
-// @exclude      *mail.google.com*
-// @exclude      *://localhost*
-// @exclude      *.loader.to/*
-// @exclude      *tekmods.com
-// @exclude      *pikabu.ru*
-// @exclude      *psnprofiles.com*
-// @exclude      *carrd.co/dashboard/*
-// @exclude      *192.168.*
-// @exclude      *169.254.*
-// @exclude      *172.16.*
-// @exclude      *172.31.*
-// @exclude      *10.*.*.*
+// @match        *://*
 
+// Excluded for Privacy
+// @exclude      *://my.nextdns.io/*
+// @exclude      *://accounts.google.com/*
+// @exclude      *://myactivity.google.com/*
+// @exclude      *://account.sony.com/*
+// @exclude      *://id.sonyentertainmentnetwork.com/*
+// @exclude      *://github.com/*/*/edit/*
+// @exclude      *://gemini.google.com/*
+// @exclude      *://mail.google.com/*
+// @exclude      *://carrd.co/dashboard*
+// @exclude      *://localhost/*
+// @exclude      *://192.168.*
+// @exclude      *://169.254.*
+// @exclude      *://172.16.*
+// @exclude      *://172.31.*
+// @exclude      *://10.*
+
+// Excluded by IA
+// @exclude      *://*.loader.to/*
+// @exclude      *://tekmods.com/*
+// @exclude      *://pikabu.ru/*
+// @exclude      *://psnprofiles.com/*
 // ==/UserScript==
 
 (function() {
