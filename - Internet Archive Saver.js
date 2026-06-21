@@ -7,12 +7,12 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987
 // @icon         https://is.gd/IASVG
-// @version      4.6.2
+// @version      4.6.3
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
 
-// @match        *
+// @match        *://*/*
 
 // Excluded for Privacy
 // @exclude      *://my.nextdns.io/*
