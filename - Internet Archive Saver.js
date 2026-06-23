@@ -236,7 +236,7 @@
             iaBadge.style.position = "fixed";
             iaBadge.style.display = "block";
             iaBadge.style.bottom = "5px";
-            iaBadge.style.right = "5px";
+            iaBadge.style.right = "12px";
             iaBadge.style.color = "#fff";
             iaBadge.style.padding = "5px 10px";
             iaBadge.style.userSelect = "none";
