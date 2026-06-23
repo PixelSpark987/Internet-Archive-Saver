@@ -5,9 +5,9 @@
 // @homepage     https://github.com/PixelSpark987/Internet-Archive-Saver/
 // @downloadURL  https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
-// @author       PixelSpark987
+// @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.6.3
+// @version      4.6.4
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
