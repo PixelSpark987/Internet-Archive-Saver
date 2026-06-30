@@ -36,6 +36,7 @@
 // @exclude      *://tekmods.com/*
 // @exclude      *://pikabu.ru/*
 // @exclude      *://psnprofiles.com/*
+// @exclude      *://mlpforums.com/*
 // ==/UserScript==
 
 (function() {
