@@ -35,6 +35,7 @@
 // @exclude      *://*.loader.to/*
 // @exclude      *://tekmods.com/*
 // @exclude      *://pikabu.ru/*
+// @exclude      *://pony.town/*
 // @exclude      *://psnprofiles.com/*
 // @exclude      *://mlpforums.com/*
 // @exclude      *://derpibooru.org/*
