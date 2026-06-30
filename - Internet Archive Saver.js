@@ -37,6 +37,7 @@
 // @exclude      *://pikabu.ru/*
 // @exclude      *://psnprofiles.com/*
 // @exclude      *://mlpforums.com/*
+// @exclude      *://derpibooru.org/*
 // ==/UserScript==
 
 (function() {
