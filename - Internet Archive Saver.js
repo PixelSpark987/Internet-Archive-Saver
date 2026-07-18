@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.0
+// @version      4.9.1
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -33,14 +33,6 @@
 
 // Excluded by IA
 // @exclude      *://*.loader.to/*
-// @exclude      *://tekmods.com/*
-// @exclude      *://pikabu.ru/*
-// @exclude      *://pony.town/*
-// @exclude      *://werecoverdata.com/*
-// @exclude      *://psnprofiles.com/*
-// @exclude      *://derpibooru.org/*
-// @exclude      *://mlpforums.com/*
-// @exclude      *://tantabus.ai/*
 
 // ==/UserScript==
 
