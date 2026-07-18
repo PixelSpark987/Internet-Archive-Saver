@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.7.0
+// @version      4.8.0
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -33,14 +33,6 @@
 
 // Excluded by IA
 // @exclude      *://*.loader.to/*
-// @exclude      *://tekmods.com/*
-// @exclude      *://pikabu.ru/*
-// @exclude      *://pony.town/*
-// @exclude      *://werecoverdata.com/*
-// @exclude      *://psnprofiles.com/*
-// @exclude      *://derpibooru.org/*
-// @exclude      *://mlpforums.com/*
-// @exclude      *://tantabus.ai/*
 
 // ==/UserScript==
 
@@ -91,8 +83,8 @@
         unrequired:   ["Unrequired - Last Save <6H Ago", "#ff9800"],
         successAgain: ["Archived",                       "#aa00aa"],
         successFirst: ["FIRST ARCHIVAL",                 "#ff00ff"],
-        // Errors
-        excluded:     ["URL Excluded by IA",             "#000000"],
+        // Errors / Alternative Fallback
+        excluded:     ["Excluded from IA - Save to archive.is", "#d35400"],
         rateLimited:  ["Rate Limited",                   "#ff3c00"],
         iaOverloaded: ["IA Overloaded - 503",            "#ff2e2e"],
         siteTimeout:  ["Site Timeout - 504",             "#ff2e2e"],
@@ -109,6 +101,7 @@
     let currentRetryWait = 5000;
     let countdownInterval = null;
     let fadeTimeout = null;
+    let isExcludedState = false;
 
     function isYouTubeVideo() {
         const host = location.hostname;
@@ -117,7 +110,6 @@
         return (host.includes("youtube.com") && (path.startsWith("/shorts/") || (path.startsWith("/watch") && search.includes("v="))));
     }
 
-    // Format raw bytes into human-readable data blocks
     function formatBytes(bytes) {
         if (bytes === 0) return '0 Bytes';
         if (bytes < 1024) return bytes + ' Bytes';
@@ -242,6 +234,9 @@
     function showBadge(statusText, color, title){
         if (!SHOW_BADGES || isYouTubeVideo()) return;
 
+        // Track if badge has shifted to the alternative fallback layout
+        isExcludedState = (statusText === STATUS_CONFIG.excluded[0]);
+
         if (!iaBadge) {
             iaBadge = document.createElement("div");
             iaBadge.style.position = "fixed";
@@ -263,7 +258,13 @@
             iaBadge.style.transition = "opacity 1.0s ease";
             iaBadge.style.transformOrigin = "bottom right";
 
-            iaBadge.onclick = () => window.open('https://web.archive.org/web/*/' + location.href, '_blank');
+            iaBadge.onclick = () => {
+                if (isExcludedState) {
+                    window.open('https://archive.is/?run=1&url=' + encodeURIComponent(location.href), '_blank');
+                } else {
+                    window.open('https://web.archive.org/web/*/' + location.href, '_blank');
+                }
+            };
 
             iaBadge.onmouseenter = () => { if (fadeTimeout) clearTimeout(fadeTimeout); iaBadge.style.opacity = "1"; };
             iaBadge.onmouseleave = () => { iaBadge.style.opacity = "0.25"; };
@@ -307,7 +308,7 @@
             timeout: 20000,
             onload: function(data){
                 if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "This site is blocked by IA.");
+                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "This site is blocked by IA. Click to save to archive.is.");
                     return;
                 }
                 if (data.status == 429) {
@@ -330,7 +331,7 @@
             timeout: 20000,
             onload: function(data){
                 if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Site excluded from Wayback Machine.");
+                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Site excluded from Wayback Machine. Click to save to archive.is.");
                     return;
                 }
                 if (data.status == 429) {
@@ -382,7 +383,7 @@
                     showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
                     currentRetryWait = 5000;
                 } else if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL.");
+                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL. Click to save to archive.is.");
                 } else if (data.status == 429) {
                     setTimeout(() => { currentRetryWait += 5000; archive(url, first); }, currentRetryWait);
                 } else {
