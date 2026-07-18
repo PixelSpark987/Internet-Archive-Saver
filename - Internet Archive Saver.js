@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.6.6
+// @version      4.7.0
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -117,6 +117,14 @@
         return (host.includes("youtube.com") && (path.startsWith("/shorts/") || (path.startsWith("/watch") && search.includes("v="))));
     }
 
+    // Format raw bytes into human-readable data blocks
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        if (bytes < 1024) return bytes + ' Bytes';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
     // --- ENGINE FOR DISPATCHING BUTTONS BASED ON INTERFACE TYPE ---
     const handleYouTubeInjections = () => {
         if (!isYouTubeVideo()) {
@@ -134,7 +142,6 @@
         }
     };
 
-    // New Injection Block targeting Shorts Action Rails
     const injectShortsButton = () => {
         const targetAnchor = document.querySelector('.ytwReelActionBarViewModelHostDesktopActionButton.ytLikeButtonViewModelHost > toggle-button-view-model > .ytSpecButtonViewModelHost > .ytSpecButtonShapeWithLabelHost > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconButton.ytSpecButtonShapeNextSizeL.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost');
 
@@ -178,12 +185,10 @@
                 window.open(spnMallUrl, '_blank');
             };
 
-            // Prepend directly above the container row structure of the Like element
             targetAnchor.parentNode.insertBefore(btn, targetAnchor);
         }
     };
 
-    // Standard Video Bar Injection Block
     const injectStandardVideoButton = () => {
         const targetAnchor = document.querySelector('.ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextSegmentedStart.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost');
 
@@ -280,13 +285,6 @@
         iaBadge.title = title;
     }
 
-    function formatTime(seconds) {
-        if (seconds < 60) return seconds + "s";
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}m ${s}s`;
-    }
-
     // --- GENERAL BACKEND PROCESSING ---
     function timestampConvert(ts){
         return Date.parse(ts.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)$/, '$4:$5:$6 $2/$3/$1 GMT'));
@@ -354,7 +352,7 @@
                         }
                     }
                 } catch(e) {
-                   setTimeout(() => archiving_necessity_check(url), 5000);
+                    setTimeout(() => archiving_necessity_check(url), 5000);
                 }
             },
             onerror: function() { setTimeout(() => runIAScript(), 5000); },
@@ -363,16 +361,25 @@
     }
 
     function archive(url, first){
-        showBadge(STATUS_CONFIG.archiving[0], STATUS_CONFIG.archiving[1], "Sending to IA");
+        showBadge(STATUS_CONFIG.archiving[0] + " - 0 Bytes", STATUS_CONFIG.archiving[1], "Sending to IA");
 
         GM_xmlhttpRequest({
             method: 'GET',
             url: 'https://web.archive.org/save/' + url,
             timeout: 45000,
+            onprogress: function(event) {
+                if (event.lengthComputable || event.loaded > 0) {
+                    const progressData = formatBytes(event.loaded);
+                    showBadge(STATUS_CONFIG.archiving[0] + " - (" + progressData + ")", STATUS_CONFIG.archiving[1], "Sending to IA");
+                }
+            },
             onload: function(data){
                 if (data.status == 200){
+                    const totalBytes = data.responseText ? data.responseText.length : 0;
+                    const finalDataSize = formatBytes(totalBytes);
+                    
                     const success = first ? STATUS_CONFIG.successFirst : STATUS_CONFIG.successAgain;
-                    showBadge(success[0], success[1], "Success!");
+                    showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
                     currentRetryWait = 5000;
                 } else if (data.status == 403 || data.status == 404) {
                     showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL.");
@@ -397,7 +404,6 @@
         }
     }, 500);
 
-    // Continuous evaluation engine for dynamic content loading
     setInterval(handleYouTubeInjections, 1000);
 
     if (document.body) { runIAScript(); } else { window.addEventListener('DOMContentLoaded', runIAScript); }
