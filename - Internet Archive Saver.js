@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.8.0
+// @version      4.9.0
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -33,6 +33,14 @@
 
 // Excluded by IA
 // @exclude      *://*.loader.to/*
+// @exclude      *://tekmods.com/*
+// @exclude      *://pikabu.ru/*
+// @exclude      *://pony.town/*
+// @exclude      *://werecoverdata.com/*
+// @exclude      *://psnprofiles.com/*
+// @exclude      *://derpibooru.org/*
+// @exclude      *://mlpforums.com/*
+// @exclude      *://tantabus.ai/*
 
 // ==/UserScript==
 
@@ -83,9 +91,9 @@
         unrequired:   ["Unrequired - Last Save <6H Ago", "#ff9800"],
         successAgain: ["Archived",                       "#aa00aa"],
         successFirst: ["FIRST ARCHIVAL",                 "#ff00ff"],
-        // Errors / Alternative Fallback
+        // Errors / Alternative Fallbacks
         excluded:     ["Excluded from IA - Save to archive.is", "#d35400"],
-        rateLimited:  ["Rate Limited",                   "#ff3c00"],
+        rateLimited:  ["Rate Limited - Save to archive.is",     "#d35400"],
         iaOverloaded: ["IA Overloaded - 503",            "#ff2e2e"],
         siteTimeout:  ["Site Timeout - 504",             "#ff2e2e"],
         requestHang:  ["Request Hang - Retrying",        "#ff2e2e"],
@@ -101,7 +109,7 @@
     let currentRetryWait = 5000;
     let countdownInterval = null;
     let fadeTimeout = null;
-    let isExcludedState = false;
+    let isFallbackState = false;
 
     function isYouTubeVideo() {
         const host = location.hostname;
@@ -234,8 +242,8 @@
     function showBadge(statusText, color, title){
         if (!SHOW_BADGES || isYouTubeVideo()) return;
 
-        // Track if badge has shifted to the alternative fallback layout
-        isExcludedState = (statusText === STATUS_CONFIG.excluded[0]);
+        // Catch either the standard exclusion or a rate limit status to swap the click event
+        isFallbackState = (statusText === STATUS_CONFIG.excluded[0] || statusText === STATUS_CONFIG.rateLimited[0]);
 
         if (!iaBadge) {
             iaBadge = document.createElement("div");
@@ -259,7 +267,7 @@
             iaBadge.style.transformOrigin = "bottom right";
 
             iaBadge.onclick = () => {
-                if (isExcludedState) {
+                if (isFallbackState) {
                     window.open('https://archive.is/?run=1&url=' + encodeURIComponent(location.href), '_blank');
                 } else {
                     window.open('https://web.archive.org/web/*/' + location.href, '_blank');
@@ -312,6 +320,7 @@
                     return;
                 }
                 if (data.status == 429) {
+                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
                     setTimeout(() => { currentRetryWait += 5000; runIAScript(); }, currentRetryWait);
                 } else {
                     archiving_necessity_check(data.finalUrl);
@@ -335,6 +344,7 @@
                     return;
                 }
                 if (data.status == 429) {
+                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
                     setTimeout(() => { currentRetryWait += 5000; archiving_necessity_check(url); }, currentRetryWait);
                     return;
                 }
@@ -385,6 +395,7 @@
                 } else if (data.status == 403 || data.status == 404) {
                     showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL. Click to save to archive.is.");
                 } else if (data.status == 429) {
+                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
                     setTimeout(() => { currentRetryWait += 5000; archive(url, first); }, currentRetryWait);
                 } else {
                     setTimeout(() => runIAScript(), 5000);
