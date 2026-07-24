@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.1
+// @version      4.9.2
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -84,8 +84,8 @@
         successAgain: ["Archived",                       "#aa00aa"],
         successFirst: ["FIRST ARCHIVAL",                 "#ff00ff"],
         // Errors / Alternative Fallbacks
-        excluded:     ["Excluded from IA - Save to archive.is", "#d35400"],
-        rateLimited:  ["Rate Limited - Save to archive.is",     "#d35400"],
+        excluded:     ["Excluded from IA", "#d35400"],
+        rateLimited:  ["Rate Limited by IA",     "#d35400"],
         iaOverloaded: ["IA Overloaded - 503",            "#ff2e2e"],
         siteTimeout:  ["Site Timeout - 504",             "#ff2e2e"],
         requestHang:  ["Request Hang - Retrying",        "#ff2e2e"],
@@ -97,11 +97,12 @@
     };
 
     let iaBadge = null;
+    let iaMenu = null;
+    let isMenuOpen = false;
     let lastHref = location.href;
     let currentRetryWait = 5000;
     let countdownInterval = null;
     let fadeTimeout = null;
-    let isFallbackState = false;
 
     function isYouTubeVideo() {
         const host = location.hostname;
@@ -116,6 +117,31 @@
         if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / 1048576).toFixed(1) + ' MB';
     }
+
+    // --- MENU HANDLING ---
+    function toggleMenu() {
+        isMenuOpen = !isMenuOpen;
+        if (isMenuOpen) {
+            iaMenu.style.display = "flex";
+            iaBadge.style.opacity = "1";
+        } else {
+            closeMenu();
+        }
+    }
+
+    function closeMenu() {
+        isMenuOpen = false;
+        if (iaMenu) iaMenu.style.display = "none";
+        if (iaBadge && !iaBadge.matches(':hover')) {
+            iaBadge.style.opacity = "0.25";
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        if (isMenuOpen && iaMenu && !iaMenu.contains(e.target) && e.target !== iaBadge) {
+            closeMenu();
+        }
+    });
 
     // --- ENGINE FOR DISPATCHING BUTTONS BASED ON INTERFACE TYPE ---
     const handleYouTubeInjections = () => {
@@ -234,9 +260,6 @@
     function showBadge(statusText, color, title){
         if (!SHOW_BADGES || isYouTubeVideo()) return;
 
-        // Catch either the standard exclusion or a rate limit status to swap the click event
-        isFallbackState = (statusText === STATUS_CONFIG.excluded[0] || statusText === STATUS_CONFIG.rateLimited[0]);
-
         if (!iaBadge) {
             iaBadge = document.createElement("div");
             iaBadge.style.position = "fixed";
@@ -258,18 +281,61 @@
             iaBadge.style.transition = "opacity 1.0s ease";
             iaBadge.style.transformOrigin = "bottom right";
 
-            iaBadge.onclick = () => {
-                if (isFallbackState) {
-                    window.open('https://archive.is/?run=1&url=' + encodeURIComponent(location.href), '_blank');
-                } else {
-                    window.open('https://web.archive.org/web/*/' + location.href, '_blank');
-                }
+            iaBadge.onclick = (e) => {
+                e.stopPropagation();
+                toggleMenu();
             };
 
             iaBadge.onmouseenter = () => { if (fadeTimeout) clearTimeout(fadeTimeout); iaBadge.style.opacity = "1"; };
-            iaBadge.onmouseleave = () => { iaBadge.style.opacity = "0.25"; };
+            iaBadge.onmouseleave = () => { if (!isMenuOpen) iaBadge.style.opacity = "0.25"; };
 
             document.documentElement.appendChild(iaBadge);
+
+            // Create the pop-up menu
+            iaMenu = document.createElement("div");
+            iaMenu.style.position = "fixed";
+            iaMenu.style.display = "none";
+            iaMenu.style.bottom = "35px";
+            iaMenu.style.right = "12px";
+            iaMenu.style.backgroundColor = "#242424";
+            iaMenu.style.color = "#fff";
+            iaMenu.style.padding = "4px 0";
+            iaMenu.style.borderRadius = "8px";
+            iaMenu.style.zIndex = "1000000001";
+            iaMenu.style.fontFamily = "Arial, sans-serif";
+            iaMenu.style.fontSize = "12px";
+            iaMenu.style.boxShadow = "0 4px 10px rgba(0,0,0,0.5)";
+            iaMenu.style.flexDirection = "column";
+            iaMenu.style.minWidth = "130px";
+            iaMenu.style.overflow = "hidden";
+
+            const createMenuItem = (text, action) => {
+                const item = document.createElement("div");
+                item.innerText = text;
+                item.style.padding = "8px 16px";
+                item.style.cursor = "pointer";
+                item.style.transition = "background-color 0.2s";
+                item.onmouseenter = () => { item.style.backgroundColor = "#454545"; };
+                item.onmouseleave = () => { item.style.backgroundColor = "transparent"; };
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    action();
+                    closeMenu();
+                };
+                return item;
+            };
+
+            const viewIA = createMenuItem("View in IA", () => {
+                window.open('https://web.archive.org/web/*/' + location.href, '_blank');
+            });
+
+            const sendArchiveIs = createMenuItem("Send to archive.is", () => {
+                window.open('https://archive.is/?run=1&url=' + encodeURIComponent(location.href), '_blank');
+            });
+
+            iaMenu.appendChild(viewIA);
+            iaMenu.appendChild(sendArchiveIs);
+            document.documentElement.appendChild(iaMenu);
         }
 
         const oldBase = iaBadge.innerHTML.split(" - ")[0];
@@ -278,7 +344,9 @@
         if (oldBase !== newBase) {
             iaBadge.style.opacity = "1";
             if (fadeTimeout) clearTimeout(fadeTimeout);
-            fadeTimeout = setTimeout(() => { if (!iaBadge.matches(':hover')) iaBadge.style.opacity = "0.25"; }, 3000);
+            fadeTimeout = setTimeout(() => {
+                if (!iaBadge.matches(':hover') && !isMenuOpen) iaBadge.style.opacity = "0.25";
+            }, 3000);
         }
 
         iaBadge.innerHTML = statusText;
@@ -298,6 +366,7 @@
 
         if (!isYouTubeVideo()) {
             if (iaBadge) { iaBadge.remove(); iaBadge = null; }
+            if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
             showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
         }
 
@@ -380,7 +449,7 @@
                 if (data.status == 200){
                     const totalBytes = data.responseText ? data.responseText.length : 0;
                     const finalDataSize = formatBytes(totalBytes);
-                    
+
                     const success = first ? STATUS_CONFIG.successFirst : STATUS_CONFIG.successAgain;
                     showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
                     currentRetryWait = 5000;
@@ -404,6 +473,7 @@
             lastHref = location.href;
             currentRetryWait = 5000;
             if (iaBadge) { iaBadge.remove(); iaBadge = null; }
+            if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
             runIAScript();
         }
     }, 500);
