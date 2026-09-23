@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.2
+// @version      4.9.3
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -74,7 +74,6 @@
 
     // --- CONFIGURATION ---
     const SHOW_BADGES = true;
-    const YT_BUTTON_IMAGE = 'https://is.gd/IASVG';
 
     const STATUS_CONFIG = {
         checking:     ["Checking - Asking IA for Info",  "#242424"],
@@ -84,8 +83,8 @@
         successAgain: ["Archived",                       "#aa00aa"],
         successFirst: ["FIRST ARCHIVAL",                 "#ff00ff"],
         // Errors / Alternative Fallbacks
-        excluded:     ["Excluded from IA", "#d35400"],
-        rateLimited:  ["Rate Limited by IA",     "#d35400"],
+        excluded:     ["Excluded from IA",               "#d35400"],
+        rateLimited:  ["Rate Limited by IA",            "#d35400"],
         iaOverloaded: ["IA Overloaded - 503",            "#ff2e2e"],
         siteTimeout:  ["Site Timeout - 504",             "#ff2e2e"],
         requestHang:  ["Request Hang - Retrying",        "#ff2e2e"],
@@ -103,12 +102,29 @@
     let currentRetryWait = 5000;
     let countdownInterval = null;
     let fadeTimeout = null;
+    let lastStatusArgs = null;
 
-    function isYouTubeVideo() {
-        const host = location.hostname;
-        const path = location.pathname;
-        const search = location.search;
-        return (host.includes("youtube.com") && (path.startsWith("/shorts/") || (path.startsWith("/watch") && search.includes("v="))));
+    // --- CSP / TRUSTED TYPES DETECTOR & SAFE CONTENT SETTER ---
+    function setSafeContent(element, contentText) {
+        try {
+            // Check if site supports/enforces Trusted Types
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+                try {
+                    const policy = window.trustedTypes.defaultPolicy ||
+                                   window.trustedTypes.createPolicy('iaSaverPolicy', {
+                                       createHTML: (str) => str
+                                   });
+                    element.innerHTML = policy.createHTML(contentText);
+                    return;
+                } catch (policyErr) {
+                    // Fall back if policy creation is blocked by CSP
+                }
+            }
+            element.innerHTML = contentText;
+        } catch (e) {
+            // Direct innerHTML assignment blocked by CSP (e.g. YouTube)
+            element.textContent = contentText;
+        }
     }
 
     function formatBytes(bytes) {
@@ -121,7 +137,7 @@
     // --- MENU HANDLING ---
     function toggleMenu() {
         isMenuOpen = !isMenuOpen;
-        if (isMenuOpen) {
+        if (isMenuOpen && iaMenu && iaBadge) {
             iaMenu.style.display = "flex";
             iaBadge.style.opacity = "1";
         } else {
@@ -143,143 +159,45 @@
         }
     });
 
-    // --- ENGINE FOR DISPATCHING BUTTONS BASED ON INTERFACE TYPE ---
-    const handleYouTubeInjections = () => {
-        if (!isYouTubeVideo()) {
-            const b1 = document.getElementById('ia-saver-pill-btn');
-            const b2 = document.getElementById('ia-saver-shorts-btn');
-            if (b1) b1.remove();
-            if (b2) b2.remove();
-            return;
-        }
-
-        if (location.pathname.startsWith("/shorts/")) {
-            injectShortsButton();
-        } else {
-            injectStandardVideoButton();
-        }
-    };
-
-    const injectShortsButton = () => {
-        const targetAnchor = document.querySelector('.ytwReelActionBarViewModelHostDesktopActionButton.ytLikeButtonViewModelHost > toggle-button-view-model > .ytSpecButtonViewModelHost > .ytSpecButtonShapeWithLabelHost > .ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextIconButton.ytSpecButtonShapeNextSizeL.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost');
-
-        if (targetAnchor && targetAnchor.parentNode && !document.getElementById('ia-saver-shorts-btn')) {
-            const btn = document.createElement('button');
-            btn.id = 'ia-saver-shorts-btn';
-            btn.title = "Save This Short URL to Internet Archive";
-
-            btn.style.cssText = `
-                background: transparent !important;
-                border: none !important;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                width: 48px;
-                height: 48px;
-                margin-top: 2px;
-                margin-bottom: 8px;
-                opacity: 0.8;
-                transition: opacity 0.2s ease, transform 0.1s ease;
-            `;
-
-            const img = document.createElement('img');
-            img.src = YT_BUTTON_IMAGE;
-            img.style.width = '24px';
-            img.style.height = '24px';
-            img.style.display = 'block';
-
-            btn.appendChild(img);
-
-            btn.onmouseenter = () => { btn.style.opacity = '1'; };
-            btn.onmouseleave = () => { btn.style.opacity = '0.8'; };
-            btn.onmousedown = () => { btn.style.transform = 'scale(0.9)'; };
-            btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
-
-            btn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const spnMallUrl = `https://web.archive.org/save/#save-youtube-url=${encodeURIComponent(location.href)}`;
-                window.open(spnMallUrl, '_blank');
-            };
-
-            targetAnchor.parentNode.insertBefore(btn, targetAnchor);
-        }
-    };
-
-    const injectStandardVideoButton = () => {
-        const targetAnchor = document.querySelector('.ytSpecButtonShapeNextEnableBackdropFilterExperiment.ytSpecButtonShapeNextSegmentedStart.ytSpecButtonShapeNextIconLeading.ytSpecButtonShapeNextSizeM.ytSpecButtonShapeNextMono.ytSpecButtonShapeNextTonal.ytSpecButtonShapeNextHost');
-
-        if (targetAnchor && targetAnchor.parentNode && !document.getElementById('ia-saver-pill-btn')) {
-            const btn = document.createElement('button');
-            btn.id = 'ia-saver-pill-btn';
-            btn.title = "Save This Video URL to Internet Archive";
-
-            btn.style.cssText = `
-                background: transparent !important;
-                border: none !important;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                width: 36px;
-                height: 36px;
-                padding: 0;
-                margin-right: 6px;
-                margin-left: 2px;
-                vertical-align: middle;
-                opacity: 0.75;
-                transition: opacity 0.2s ease, transform 0.1s ease;
-            `;
-
-            const img = document.createElement('img');
-            img.src = YT_BUTTON_IMAGE;
-            img.style.width = '20px';
-            img.style.height = '20px';
-            img.style.display = 'block';
-
-            btn.appendChild(img);
-
-            btn.onmouseenter = () => { btn.style.opacity = '1'; };
-            btn.onmouseleave = () => { btn.style.opacity = '0.75'; };
-            btn.onmousedown = () => { btn.style.transform = 'scale(0.9)'; };
-            btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
-
-            btn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const spnMallUrl = `https://web.archive.org/save/#save-youtube-url=${encodeURIComponent(location.href)}`;
-                window.open(spnMallUrl, '_blank');
-            };
-
-            targetAnchor.parentNode.insertBefore(btn, targetAnchor);
-        }
-    };
-
-    // --- STANDARD TEXT BADGE (FOR OTHER WEBSITES) ---
+    // --- STANDARD TEXT BADGE ---
     function showBadge(statusText, color, title){
-        if (!SHOW_BADGES || isYouTubeVideo()) return;
+        if (!SHOW_BADGES) return;
+        lastStatusArgs = { statusText, color, title };
 
-        if (!iaBadge) {
+        const targetParent = document.body || document.documentElement;
+        if (!targetParent) return;
+
+        if (!iaBadge || !targetParent.contains(iaBadge)) {
+            if (iaBadge) iaBadge.remove();
+
             iaBadge = document.createElement("div");
-            iaBadge.style.position = "fixed";
-            iaBadge.style.display = "block";
-            iaBadge.style.bottom = "5px";
-            iaBadge.style.right = "12px";
-            iaBadge.style.color = "#fff";
-            iaBadge.style.padding = "5px 10px";
-            iaBadge.style.userSelect = "none";
-            iaBadge.style.cursor = "pointer";
-            iaBadge.style.fontSize = "12px";
-            iaBadge.style.borderRadius = "20px";
-            iaBadge.style.zIndex = "1000000000";
-            iaBadge.style.fontFamily = "Arial, sans-serif";
-            iaBadge.style.width = "initial";
-            iaBadge.style.boxShadow = "0 2px 5px rgba(0,0,0,0.0)";
-            iaBadge.style.margin = "0";
-            iaBadge.style.opacity = "0.25";
-            iaBadge.style.transition = "opacity 1.0s ease";
-            iaBadge.style.transformOrigin = "bottom right";
+            iaBadge.style.cssText = `
+                position: fixed !important;
+                display: block !important;
+                bottom: 5px !important;
+                right: 12px !important;
+                color: #fff !important;
+                padding: 5px 10px !important;
+                user-select: none !important;
+                cursor: pointer !important;
+                font-size: 13px !important;
+                line-height: 1.2 !important;
+                font-weight: normal !important;
+                letter-spacing: normal !important;
+                text-transform: none !important;
+                white-space: nowrap !important;
+                border-radius: 20px !important;
+                z-index: 1000000000 !important;
+                font-family: Arial, sans-serif !important;
+                width: auto !important;
+                height: auto !important;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+                margin: 0 !important;
+                opacity: 0.25;
+                transition: opacity 1.0s ease !important;
+                transform-origin: bottom right !important;
+                box-sizing: content-box !important;
+            `;
 
             iaBadge.onclick = (e) => {
                 e.stopPropagation();
@@ -289,32 +207,45 @@
             iaBadge.onmouseenter = () => { if (fadeTimeout) clearTimeout(fadeTimeout); iaBadge.style.opacity = "1"; };
             iaBadge.onmouseleave = () => { if (!isMenuOpen) iaBadge.style.opacity = "0.25"; };
 
-            document.documentElement.appendChild(iaBadge);
+            targetParent.appendChild(iaBadge);
+        }
 
-            // Create the pop-up menu
+        if (!iaMenu || !targetParent.contains(iaMenu)) {
+            if (iaMenu) iaMenu.remove();
+
             iaMenu = document.createElement("div");
-            iaMenu.style.position = "fixed";
-            iaMenu.style.display = "none";
-            iaMenu.style.bottom = "35px";
-            iaMenu.style.right = "12px";
-            iaMenu.style.backgroundColor = "#242424";
-            iaMenu.style.color = "#fff";
-            iaMenu.style.padding = "4px 0";
-            iaMenu.style.borderRadius = "8px";
-            iaMenu.style.zIndex = "1000000001";
-            iaMenu.style.fontFamily = "Arial, sans-serif";
-            iaMenu.style.fontSize = "12px";
-            iaMenu.style.boxShadow = "0 4px 10px rgba(0,0,0,0.5)";
-            iaMenu.style.flexDirection = "column";
-            iaMenu.style.minWidth = "130px";
-            iaMenu.style.overflow = "hidden";
+            iaMenu.style.cssText = `
+                position: fixed !important;
+                display: none;
+                bottom: 35px !important;
+                right: 12px !important;
+                background-color: #242424 !important;
+                color: #fff !important;
+                padding: 4px 0 !important;
+                border-radius: 8px !important;
+                z-index: 1000000001 !important;
+                font-family: Arial, sans-serif !important;
+                font-size: 12px !important;
+                line-height: 1.2 !important;
+                box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+                flex-direction: column !important;
+                min-width: 130px !important;
+                overflow: hidden !important;
+                box-sizing: content-box !important;
+            `;
 
             const createMenuItem = (text, action) => {
                 const item = document.createElement("div");
-                item.innerText = text;
-                item.style.padding = "8px 16px";
-                item.style.cursor = "pointer";
-                item.style.transition = "background-color 0.2s";
+                setSafeContent(item, text);
+                item.style.cssText = `
+                    padding: 8px 16px !important;
+                    cursor: pointer !important;
+                    transition: background-color 0.2s !important;
+                    color: #fff !important;
+                    font-size: 12px !important;
+                    line-height: 1.2 !important;
+                    white-space: nowrap !important;
+                `;
                 item.onmouseenter = () => { item.style.backgroundColor = "#454545"; };
                 item.onmouseleave = () => { item.style.backgroundColor = "transparent"; };
                 item.onclick = (e) => {
@@ -335,10 +266,10 @@
 
             iaMenu.appendChild(viewIA);
             iaMenu.appendChild(sendArchiveIs);
-            document.documentElement.appendChild(iaMenu);
+            targetParent.appendChild(iaMenu);
         }
 
-        const oldBase = iaBadge.innerHTML.split(" - ")[0];
+        const oldBase = iaBadge.textContent ? iaBadge.textContent.split(" - ")[0] : "";
         const newBase = statusText.split(" - ")[0];
 
         if (oldBase !== newBase) {
@@ -349,8 +280,8 @@
             }, 3000);
         }
 
-        iaBadge.innerHTML = statusText;
-        iaBadge.style.background = color;
+        setSafeContent(iaBadge, statusText);
+        iaBadge.style.setProperty("background", color, "important");
         iaBadge.title = title;
     }
 
@@ -364,11 +295,9 @@
     function runIAScript() {
         if (countdownInterval) clearInterval(countdownInterval);
 
-        if (!isYouTubeVideo()) {
-            if (iaBadge) { iaBadge.remove(); iaBadge = null; }
-            if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
-            showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
-        }
+        if (iaBadge) { iaBadge.remove(); iaBadge = null; }
+        if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
+        showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
 
         GM_xmlhttpRequest({
             method: 'GET',
@@ -393,7 +322,7 @@
     }
 
     function archiving_necessity_check(url){
-        if (!isYouTubeVideo()) showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], "Checking availability");
+        showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], "Checking availability");
 
         GM_xmlhttpRequest({
             method: 'GET',
@@ -412,15 +341,13 @@
                 try {
                     data = JSON.parse(data.responseText);
                     if (isEmpty(data.archived_snapshots)){
-                        if (!isYouTubeVideo()) archive(url, true);
+                        archive(url, true);
                     } else {
                         var last_save = timestampConvert(data.archived_snapshots.closest.timestamp);
                         if (Date.now() - last_save > 21600000){
-                            if (!isYouTubeVideo()) archive(url, false);
+                            archive(url, false);
                         } else {
-                            if (!isYouTubeVideo()) {
-                                showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], "Already archived recently");
-                            }
+                            showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], "Already archived recently");
                         }
                     }
                 } catch(e) {
@@ -442,7 +369,7 @@
             onprogress: function(event) {
                 if (event.lengthComputable || event.loaded > 0) {
                     const progressData = formatBytes(event.loaded);
-                    showBadge(STATUS_CONFIG.archiving[0] + " - (" + progressData + ")", STATUS_CONFIG.archiving[1], "Sending to IA");
+                    showBadge(STATUS_CONFIG.archiving[0] + " - " + progressData + "", STATUS_CONFIG.archiving[1], "Sending to IA");
                 }
             },
             onload: function(data){
@@ -475,10 +402,13 @@
             if (iaBadge) { iaBadge.remove(); iaBadge = null; }
             if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
             runIAScript();
+        } else {
+            const targetParent = document.body || document.documentElement;
+            if (targetParent && iaBadge && !targetParent.contains(iaBadge) && lastStatusArgs) {
+                showBadge(lastStatusArgs.statusText, lastStatusArgs.color, lastStatusArgs.title);
+            }
         }
     }, 500);
-
-    setInterval(handleYouTubeInjections, 1000);
 
     if (document.body) { runIAScript(); } else { window.addEventListener('DOMContentLoaded', runIAScript); }
 })();
