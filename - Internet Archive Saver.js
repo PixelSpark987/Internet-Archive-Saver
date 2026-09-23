@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.5
+// @version      5.0.0
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -47,12 +47,12 @@
 
             const iaObserver = new MutationObserver((mutations, obs) => {
                 const urlInput = document.querySelector("input.web-save-url-input") ||
-                                 document.querySelector("input[name='url']") ||
-                                 document.getElementById("web-save-url");
+                document.querySelector("input[name='url']") ||
+                document.getElementById("web-save-url");
 
                 const outlinksCheck = document.getElementById("capture_outlinks") ||
-                                      document.querySelector("input[name='capture_outlinks']") ||
-                                      document.querySelector("input[type='checkbox']");
+                document.querySelector("input[name='capture_outlinks']") ||
+                document.querySelector("input[type='checkbox']");
 
                 if (urlInput) {
                     obs.disconnect();
@@ -80,13 +80,13 @@
         checking:     ["Checking - Asking IA for Info",  "#242424"],
         attempting:   ["Attempting to Archive",          "#363636"],
         archiving:    ["Archiving",                      "#454545"],
-        unrequired:   ["Unrequired - Last Save <6H Ago", "#ff9800"],
+        unrequired:   ["Unrequired - Last Save <6H Ago", "#cf5500"],
         successAgain: ["Archived",                       "#aa00aa"],
         successFirst: ["FIRST ARCHIVAL",                 "#ff00ff"],
         // Errors / Alternative Fallbacks
-        excluded:     ["Excluded from IA",               "#d35400"],
-        rateLimited:  ["Rate Limited by IA",            "#d35400"],
-        iaOverloaded: ["IA Overloaded - 503",            "#ff2e2e"],
+        excluded:     ["Excluded from IA",               "#550000"],
+        rateLimited:  ["Rate Limited by IA",             "#aa0000"],
+        iaOverloaded: ["IA Overloaded - 503",            "#aa0000"],
         siteTimeout:  ["Site Timeout - 504",             "#ff2e2e"],
         requestHang:  ["Request Hang - Retrying",        "#ff2e2e"],
         cookieError:  ["Cookie Error - Retrying",        "#ff2e2e"],
@@ -95,6 +95,78 @@
         networkError: ["Network Error - Retrying",       "#ff2e2e"],
         parseError:   ["Parse Error - Retrying",         "#ff2e2e"]
     };
+
+    const TOOLTIP_CONFIG = {
+        jitter:       "Adding randomized delay before sending request",
+        checking:     "Requesting final URL without cookies",
+        attempting:   "Checking availability",
+        archiving:    "Sending to IA",
+        unrequired:   "Already archived recently",
+        success:      "Success!",
+        excluded:     "This site is blocked by IA. Click to save to archive.is.",
+        excludedWayback: "Site excluded from Wayback Machine. Click to save to archive.is.",
+        excludedArchival: "Archival blocked for this URL. Click to save to archive.is.",
+        rateLimited:  "Rate limited by IA. Click to save to archive.is."
+    };
+
+    // --- ELEMENT STYLES ---
+    const BADGE_STYLES = `
+        position: fixed !important;
+        display: block !important;
+        bottom: 5px !important;
+        right: 12px !important;
+        color: #fff !important;
+        padding: 5px 10px !important;
+        user-select: none !important;
+        cursor: pointer !important;
+        font-size: 13px !important;
+        line-height: 1.2 !important;
+        font-weight: normal !important;
+        letter-spacing: normal !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+        border-radius: 20px !important;
+        z-index: 1000000000 !important;
+        font-family: Arial, sans-serif !important;
+        width: auto !important;
+        height: auto !important;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+        margin: 0 !important;
+        opacity: 0.25;
+        transition: opacity 1.0s ease !important;
+        transform-origin: bottom right !important;
+        box-sizing: content-box !important;
+    `;
+
+    const MENU_STYLES = `
+        position: fixed !important;
+        display: none;
+        bottom: 35px !important;
+        right: 12px !important;
+        background-color: #242424 !important;
+        color: #fff !important;
+        padding: 4px 0 !important;
+        border-radius: 8px !important;
+        z-index: 1000000001 !important;
+        font-family: Arial, sans-serif !important;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
+        flex-direction: column !important;
+        min-width: 130px !important;
+        overflow: hidden !important;
+        box-sizing: content-box !important;
+    `;
+
+    const MENU_ITEM_STYLES = `
+        padding: 8px 16px !important;
+        cursor: pointer !important;
+        transition: background-color 0.2s !important;
+        color: #fff !important;
+        font-size: 12px !important;
+        line-height: 1.2 !important;
+        white-space: nowrap !important;
+    `;
 
     let iaBadge = null;
     let iaMenu = null;
@@ -112,9 +184,9 @@
             if (window.trustedTypes && window.trustedTypes.createPolicy) {
                 try {
                     const policy = window.trustedTypes.defaultPolicy ||
-                                   window.trustedTypes.createPolicy('iaSaverPolicy', {
-                                       createHTML: (str) => str
-                                   });
+                    window.trustedTypes.createPolicy('iaSaverPolicy', {
+                        createHTML: (str) => str
+                    });
                     element.innerHTML = policy.createHTML(contentText);
                     return;
                 } catch (policyErr) {
@@ -157,14 +229,14 @@
         let elapsedSec = 1;
         const totalTargetSec = Math.round(totalJitterMs / 1000);
 
-        showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], "Adding randomized delay before sending request");
+        showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], TOOLTIP_CONFIG.jitter);
 
         const startTime = Date.now();
         countdownInterval = setInterval(() => {
             const currentElapsed = Math.floor((Date.now() - startTime) / 1000) + 1;
             if (currentElapsed !== elapsedSec && currentElapsed <= totalTargetSec) {
                 elapsedSec = currentElapsed;
-                showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], "Adding randomized delay before sending request");
+                showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], TOOLTIP_CONFIG.jitter);
             }
         }, 200);
 
@@ -211,33 +283,7 @@
             if (iaBadge) iaBadge.remove();
 
             iaBadge = document.createElement("div");
-            iaBadge.style.cssText = `
-                position: fixed !important;
-                display: block !important;
-                bottom: 5px !important;
-                right: 12px !important;
-                color: #fff !important;
-                padding: 5px 10px !important;
-                user-select: none !important;
-                cursor: pointer !important;
-                font-size: 13px !important;
-                line-height: 1.2 !important;
-                font-weight: normal !important;
-                letter-spacing: normal !important;
-                text-transform: none !important;
-                white-space: nowrap !important;
-                border-radius: 20px !important;
-                z-index: 1000000000 !important;
-                font-family: Arial, sans-serif !important;
-                width: auto !important;
-                height: auto !important;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
-                margin: 0 !important;
-                opacity: 0.25;
-                transition: opacity 1.0s ease !important;
-                transform-origin: bottom right !important;
-                box-sizing: content-box !important;
-            `;
+            iaBadge.style.cssText = BADGE_STYLES;
 
             iaBadge.onclick = (e) => {
                 e.stopPropagation();
@@ -254,38 +300,12 @@
             if (iaMenu) iaMenu.remove();
 
             iaMenu = document.createElement("div");
-            iaMenu.style.cssText = `
-                position: fixed !important;
-                display: none;
-                bottom: 35px !important;
-                right: 12px !important;
-                background-color: #242424 !important;
-                color: #fff !important;
-                padding: 4px 0 !important;
-                border-radius: 8px !important;
-                z-index: 1000000001 !important;
-                font-family: Arial, sans-serif !important;
-                font-size: 12px !important;
-                line-height: 1.2 !important;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.5) !important;
-                flex-direction: column !important;
-                min-width: 130px !important;
-                overflow: hidden !important;
-                box-sizing: content-box !important;
-            `;
+            iaMenu.style.cssText = MENU_STYLES;
 
             const createMenuItem = (text, action) => {
                 const item = document.createElement("div");
                 setSafeContent(item, text);
-                item.style.cssText = `
-                    padding: 8px 16px !important;
-                    cursor: pointer !important;
-                    transition: background-color 0.2s !important;
-                    color: #fff !important;
-                    font-size: 12px !important;
-                    line-height: 1.2 !important;
-                    white-space: nowrap !important;
-                `;
+                item.style.cssText = MENU_ITEM_STYLES;
                 item.onmouseenter = () => { item.style.backgroundColor = "#454545"; };
                 item.onmouseleave = () => { item.style.backgroundColor = "transparent"; };
                 item.onclick = (e) => {
@@ -339,7 +359,7 @@
         if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
 
         executeWithJitter(() => {
-            showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
+            showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], TOOLTIP_CONFIG.checking);
 
             GM_xmlhttpRequest({
                 method: 'GET',
@@ -348,11 +368,11 @@
                 timeout: 20000,
                 onload: function(data){
                     if (data.status == 403 || data.status == 404) {
-                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "This site is blocked by IA. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], TOOLTIP_CONFIG.excluded);
                         return;
                     }
                     if (data.status == 429) {
-                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], TOOLTIP_CONFIG.rateLimited);
                         setTimeout(() => { currentRetryWait += 5000; runIAScript(); }, currentRetryWait);
                     } else {
                         archiving_necessity_check(data.finalUrl);
@@ -366,7 +386,7 @@
 
     function archiving_necessity_check(url){
         executeWithJitter(() => {
-            showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], "Checking availability");
+            showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], TOOLTIP_CONFIG.attempting);
 
             GM_xmlhttpRequest({
                 method: 'GET',
@@ -374,11 +394,11 @@
                 timeout: 20000,
                 onload: function(data){
                     if (data.status == 403 || data.status == 404) {
-                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Site excluded from Wayback Machine. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], TOOLTIP_CONFIG.excludedWayback);
                         return;
                     }
                     if (data.status == 429) {
-                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], TOOLTIP_CONFIG.rateLimited);
                         setTimeout(() => { currentRetryWait += 5000; archiving_necessity_check(url); }, currentRetryWait);
                         return;
                     }
@@ -391,7 +411,7 @@
                             if (Date.now() - last_save > 21600000){
                                 archive(url, false);
                             } else {
-                                showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], "Already archived recently");
+                                showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], TOOLTIP_CONFIG.unrequired);
                             }
                         }
                     } catch(e) {
@@ -406,7 +426,7 @@
 
     function archive(url, first){
         executeWithJitter(() => {
-            showBadge(STATUS_CONFIG.archiving[0] + " - 0 Bytes", STATUS_CONFIG.archiving[1], "Sending to IA");
+            showBadge(STATUS_CONFIG.archiving[0] + " - 0 Bytes", STATUS_CONFIG.archiving[1], TOOLTIP_CONFIG.archiving);
 
             GM_xmlhttpRequest({
                 method: 'GET',
@@ -415,7 +435,7 @@
                 onprogress: function(event) {
                     if (event.lengthComputable || event.loaded > 0) {
                         const progressData = formatBytes(event.loaded);
-                        showBadge(STATUS_CONFIG.archiving[0] + " - (" + progressData + ")", STATUS_CONFIG.archiving[1], "Sending to IA");
+                        showBadge(STATUS_CONFIG.archiving[0] + " - " + progressData, STATUS_CONFIG.archiving[1], TOOLTIP_CONFIG.archiving);
                     }
                 },
                 onload: function(data){
@@ -424,12 +444,12 @@
                         const finalDataSize = formatBytes(totalBytes);
 
                         const success = first ? STATUS_CONFIG.successFirst : STATUS_CONFIG.successAgain;
-                        showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
+                        showBadge(success[0] + " - " + finalDataSize, success[1], TOOLTIP_CONFIG.success);
                         currentRetryWait = 5000;
                     } else if (data.status == 403 || data.status == 404) {
-                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], TOOLTIP_CONFIG.excludedArchival);
                     } else if (data.status == 429) {
-                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], TOOLTIP_CONFIG.rateLimited);
                         setTimeout(() => { currentRetryWait += 5000; archive(url, first); }, currentRetryWait);
                     } else {
                         setTimeout(() => runIAScript(), 5000);
