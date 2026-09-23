@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         - Internet Archive Saver
+// @name         - Internet Archive Saver - testing
 // @description  Saves visited pages to the Internet Archive.
 // @namespace    https://is.gd/PS987
 // @homepage     https://github.com/PixelSpark987/Internet-Archive-Saver/
@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.3
+// @version      4.9.4
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
@@ -76,6 +76,7 @@
     const SHOW_BADGES = true;
 
     const STATUS_CONFIG = {
+        jitter:       ["Jittering",                      "#000055"],
         checking:     ["Checking - Asking IA for Info",  "#242424"],
         attempting:   ["Attempting to Archive",          "#363636"],
         archiving:    ["Archiving",                      "#454545"],
@@ -103,11 +104,11 @@
     let countdownInterval = null;
     let fadeTimeout = null;
     let lastStatusArgs = null;
+    let lastJitterSeconds = null;
 
     // --- CSP / TRUSTED TYPES DETECTOR & SAFE CONTENT SETTER ---
     function setSafeContent(element, contentText) {
         try {
-            // Check if site supports/enforces Trusted Types
             if (window.trustedTypes && window.trustedTypes.createPolicy) {
                 try {
                     const policy = window.trustedTypes.defaultPolicy ||
@@ -117,12 +118,11 @@
                     element.innerHTML = policy.createHTML(contentText);
                     return;
                 } catch (policyErr) {
-                    // Fall back if policy creation is blocked by CSP
+                    // Fall back if policy creation is blocked
                 }
             }
             element.innerHTML = contentText;
         } catch (e) {
-            // Direct innerHTML assignment blocked by CSP (e.g. YouTube)
             element.textContent = contentText;
         }
     }
@@ -132,6 +132,46 @@
         if (bytes < 1024) return bytes + ' Bytes';
         if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    // --- JITTER GENERATOR & EXECUTION HANDLER ---
+    function executeWithJitter(taskCallback) {
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        // Select seconds (1 to 5) ensuring it never matches lastJitterSeconds
+        let chosenSeconds;
+        do {
+            chosenSeconds = Math.floor(Math.random() * 5) + 1;
+        } while (chosenSeconds === lastJitterSeconds);
+        lastJitterSeconds = chosenSeconds;
+
+        // Fully randomize milliseconds (0-999ms)
+        const chosenMs = Math.floor(Math.random() * 1000);
+        let totalJitterMs = (chosenSeconds * 1000) + chosenMs;
+
+        // Ensure total delay never pushes past 5.5 seconds (5500ms)
+        if (totalJitterMs > 5500) {
+            totalJitterMs = 5500;
+        }
+
+        let elapsedSec = 1;
+        const totalTargetSec = Math.round(totalJitterMs / 1000);
+
+        showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], "Adding randomized delay before sending request");
+
+        const startTime = Date.now();
+        countdownInterval = setInterval(() => {
+            const currentElapsed = Math.floor((Date.now() - startTime) / 1000) + 1;
+            if (currentElapsed !== elapsedSec && currentElapsed <= totalTargetSec) {
+                elapsedSec = currentElapsed;
+                showBadge(`${STATUS_CONFIG.jitter[0]} - ${elapsedSec} sec`, STATUS_CONFIG.jitter[1], "Adding randomized delay before sending request");
+            }
+        }, 200);
+
+        setTimeout(() => {
+            if (countdownInterval) clearInterval(countdownInterval);
+            taskCallback();
+        }, totalJitterMs);
     }
 
     // --- MENU HANDLING ---
@@ -180,7 +220,7 @@
                 padding: 5px 10px !important;
                 user-select: none !important;
                 cursor: pointer !important;
-                font-size: 13px !important;
+                font-size: 12px !important;
                 line-height: 1.2 !important;
                 font-weight: normal !important;
                 letter-spacing: normal !important;
@@ -297,100 +337,107 @@
 
         if (iaBadge) { iaBadge.remove(); iaBadge = null; }
         if (iaMenu) { iaMenu.remove(); iaMenu = null; isMenuOpen = false; }
-        showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
 
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: location.href,
-            anonymous: true,
-            timeout: 20000,
-            onload: function(data){
-                if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "This site is blocked by IA. Click to save to archive.is.");
-                    return;
-                }
-                if (data.status == 429) {
-                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
-                    setTimeout(() => { currentRetryWait += 5000; runIAScript(); }, currentRetryWait);
-                } else {
-                    archiving_necessity_check(data.finalUrl);
-                }
-            },
-            onerror: function() { setTimeout(() => runIAScript(), 5000); },
-            ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+        executeWithJitter(() => {
+            showBadge(STATUS_CONFIG.checking[0], STATUS_CONFIG.checking[1], "Requesting final URL without cookies");
+
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: location.href,
+                anonymous: true,
+                timeout: 20000,
+                onload: function(data){
+                    if (data.status == 403 || data.status == 404) {
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "This site is blocked by IA. Click to save to archive.is.");
+                        return;
+                    }
+                    if (data.status == 429) {
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        setTimeout(() => { currentRetryWait += 5000; runIAScript(); }, currentRetryWait);
+                    } else {
+                        archiving_necessity_check(data.finalUrl);
+                    }
+                },
+                onerror: function() { setTimeout(() => runIAScript(), 5000); },
+                ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+            });
         });
     }
 
     function archiving_necessity_check(url){
-        showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], "Checking availability");
+        executeWithJitter(() => {
+            showBadge(STATUS_CONFIG.attempting[0], STATUS_CONFIG.attempting[1], "Checking availability");
 
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: 'https://archive.org/wayback/available?url=' + encodeURIComponent(url),
-            timeout: 20000,
-            onload: function(data){
-                if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Site excluded from Wayback Machine. Click to save to archive.is.");
-                    return;
-                }
-                if (data.status == 429) {
-                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
-                    setTimeout(() => { currentRetryWait += 5000; archiving_necessity_check(url); }, currentRetryWait);
-                    return;
-                }
-                try {
-                    data = JSON.parse(data.responseText);
-                    if (isEmpty(data.archived_snapshots)){
-                        archive(url, true);
-                    } else {
-                        var last_save = timestampConvert(data.archived_snapshots.closest.timestamp);
-                        if (Date.now() - last_save > 21600000){
-                            archive(url, false);
-                        } else {
-                            showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], "Already archived recently");
-                        }
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: 'https://archive.org/wayback/available?url=' + encodeURIComponent(url),
+                timeout: 20000,
+                onload: function(data){
+                    if (data.status == 403 || data.status == 404) {
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Site excluded from Wayback Machine. Click to save to archive.is.");
+                        return;
                     }
-                } catch(e) {
-                    setTimeout(() => archiving_necessity_check(url), 5000);
-                }
-            },
-            onerror: function() { setTimeout(() => runIAScript(), 5000); },
-            ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+                    if (data.status == 429) {
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        setTimeout(() => { currentRetryWait += 5000; archiving_necessity_check(url); }, currentRetryWait);
+                        return;
+                    }
+                    try {
+                        data = JSON.parse(data.responseText);
+                        if (isEmpty(data.archived_snapshots)){
+                            archive(url, true);
+                        } else {
+                            var last_save = timestampConvert(data.archived_snapshots.closest.timestamp);
+                            if (Date.now() - last_save > 21600000){
+                                archive(url, false);
+                            } else {
+                                showBadge(STATUS_CONFIG.unrequired[0], STATUS_CONFIG.unrequired[1], "Already archived recently");
+                            }
+                        }
+                    } catch(e) {
+                        setTimeout(() => archiving_necessity_check(url), 5000);
+                    }
+                },
+                onerror: function() { setTimeout(() => runIAScript(), 5000); },
+                ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+            });
         });
     }
 
     function archive(url, first){
-        showBadge(STATUS_CONFIG.archiving[0] + " - 0 Bytes", STATUS_CONFIG.archiving[1], "Sending to IA");
+        executeWithJitter(() => {
+            showBadge(STATUS_CONFIG.archiving[0] + " - 0 Bytes", STATUS_CONFIG.archiving[1], "Sending to IA");
 
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: 'https://web.archive.org/save/' + url,
-            timeout: 45000,
-            onprogress: function(event) {
-                if (event.lengthComputable || event.loaded > 0) {
-                    const progressData = formatBytes(event.loaded);
-                    showBadge(STATUS_CONFIG.archiving[0] + " - " + progressData + "", STATUS_CONFIG.archiving[1], "Sending to IA");
-                }
-            },
-            onload: function(data){
-                if (data.status == 200){
-                    const totalBytes = data.responseText ? data.responseText.length : 0;
-                    const finalDataSize = formatBytes(totalBytes);
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: 'https://web.archive.org/save/' + url,
+                timeout: 45000,
+                onprogress: function(event) {
+                    if (event.lengthComputable || event.loaded > 0) {
+                        const progressData = formatBytes(event.loaded);
+                        showBadge(STATUS_CONFIG.archiving[0] + " - (" + progressData + ")", STATUS_CONFIG.archiving[1], "Sending to IA");
+                    }
+                },
+                onload: function(data){
+                    if (data.status == 200){
+                        const totalBytes = data.responseText ? data.responseText.length : 0;
+                        const finalDataSize = formatBytes(totalBytes);
 
-                    const success = first ? STATUS_CONFIG.successFirst : STATUS_CONFIG.successAgain;
-                    showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
-                    currentRetryWait = 5000;
-                } else if (data.status == 403 || data.status == 404) {
-                    showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL. Click to save to archive.is.");
-                } else if (data.status == 429) {
-                    showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
-                    setTimeout(() => { currentRetryWait += 5000; archive(url, first); }, currentRetryWait);
-                } else {
-                    setTimeout(() => runIAScript(), 5000);
-                }
-            },
-            onerror: function() { setTimeout(() => runIAScript(), 5000); },
-            ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+                        const success = first ? STATUS_CONFIG.successFirst : STATUS_CONFIG.successAgain;
+                        showBadge(success[0] + " - " + finalDataSize, success[1], "Success!");
+                        currentRetryWait = 5000;
+                    } else if (data.status == 403 || data.status == 404) {
+                        showBadge(STATUS_CONFIG.excluded[0], STATUS_CONFIG.excluded[1], "Archival blocked for this URL. Click to save to archive.is.");
+                    } else if (data.status == 429) {
+                        showBadge(STATUS_CONFIG.rateLimited[0], STATUS_CONFIG.rateLimited[1], "Rate limited by IA. Click to save to archive.is.");
+                        setTimeout(() => { currentRetryWait += 5000; archive(url, first); }, currentRetryWait);
+                    } else {
+                        setTimeout(() => runIAScript(), 5000);
+                    }
+                },
+                onerror: function() { setTimeout(() => runIAScript(), 5000); },
+                ontimeout: function() { setTimeout(() => runIAScript(), 5000); }
+            });
         });
     }
 
