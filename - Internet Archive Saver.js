@@ -220,7 +220,7 @@
                 padding: 5px 10px !important;
                 user-select: none !important;
                 cursor: pointer !important;
-                font-size: 12px !important;
+                font-size: 13px !important;
                 line-height: 1.2 !important;
                 font-weight: normal !important;
                 letter-spacing: normal !important;
