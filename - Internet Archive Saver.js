@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         - Internet Archive Saver - testing
+// @name         - Internet Archive Saver
 // @description  Saves visited pages to the Internet Archive.
 // @namespace    https://is.gd/PS987
 // @homepage     https://github.com/PixelSpark987/Internet-Archive-Saver/
@@ -7,7 +7,7 @@
 // @updateURL    https://raw.githubusercontent.com/PixelSpark987/Internet-Archive-Saver/refs/heads/main/-%20Internet%20Archive%20Saver.js
 // @author       PixelSpark987 - https://is.gd/PS987
 // @icon         https://is.gd/IASVG
-// @version      4.9.4
+// @version      4.9.5
 // @grant        GM_xmlhttpRequest
 // @connect      archive.org
 // @noframes
